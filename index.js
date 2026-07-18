@@ -1,4 +1,5 @@
 const axios = require('axios');
+const http = require('http');
 
 // Firebase URL
 const FIREBASE_URL = 'https://bongocricscore-default-rtdb.firebaseio.com/score.json';
@@ -15,12 +16,10 @@ async function fetchAndSaveScore() {
         let currentScore = "0/0 (0.0 Overs)";
 
         if (result && result.data && result.data.length > 0) {
-            // Find the first match that is live or has scores
             const liveMatch = result.data[0];
             matchName = liveMatch.name || "Live Match";
             
             if (liveMatch.score && liveMatch.score.length > 0) {
-                // Get latest score from the match array
                 const scoreInfo = liveMatch.score[0];
                 currentScore = `${scoreInfo.inning}: ${scoreInfo.r}/${scoreInfo.w} (${scoreInfo.o} Ov)`;
             } else {
@@ -43,3 +42,14 @@ async function fetchAndSaveScore() {
 // Automatically runs every 30 seconds
 setInterval(fetchAndSaveScore, 30000);
 fetchAndSaveScore();
+
+// --- FREE RENDER PORT TRICK ---
+// This code creates a dummy server to prevent Render's port scan timeout error
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Cricket Bot is Running Perfectly!\n');
+});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Dummy server listening on port ${PORT}`);
+});
