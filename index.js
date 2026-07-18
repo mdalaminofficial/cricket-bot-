@@ -1,55 +1,58 @@
 const axios = require('axios');
 const http = require('http');
 
-// Firebase URL
 const FIREBASE_URL = 'https://bongocricscore-default-rtdb.firebaseio.com/score.json';
+// Using the high-quality cricapi source with the API Key
+const CRICKET_SOURCE = 'https://api.cricapi.com/v1/currentMatches?apikey=67024afe-a52d-4eaa-b2b9-e13cb9e44efb&offset=0';
 
-// Alternative FREE Reliable Cricket API Source
-const CRICKET_SOURCE = 'https://api.cricapi.com/v1/currentMatches?apikey=a5fb1db2-d6ba-4e94-8ab3-ccfba79603d6&offset=0';
-
-async function fetchAndSaveScore() {
+async function fetchAndSaveAllMatches() {
     try {
         const response = await axios.get(CRICKET_SOURCE);
-        const result = response.data; 
+        const result = response.data;
 
-        let matchName = "No Live Match Available";
-        let currentScore = "0/0 (0.0 Overs)";
+        if (result && result.data) {
+            // Mapping all matches with detailed structure
+            const matchesArray = result.data.map(match => {
+                let formattedScore = "Match starting soon...";
+                if (match.score && match.score.length > 0) {
+                    formattedScore = match.score.map(s => `${s.inning}: ${s.r}/${s.w} (${s.o} Ov)`).join(' vs ');
+                }
 
-        if (result && result.data && result.data.length > 0) {
-            const liveMatch = result.data[0];
-            matchName = liveMatch.name || "Live Match";
-            
-            if (liveMatch.score && liveMatch.score.length > 0) {
-                const scoreInfo = liveMatch.score[0];
-                currentScore = `${scoreInfo.inning}: ${scoreInfo.r}/${scoreInfo.w} (${scoreInfo.o} Ov)`;
-            } else {
-                currentScore = "Match starting soon...";
-            }
+                return {
+                    id: match.id,
+                    name: match.name || "Unknown Match",
+                    matchType: match.matchType || "league", // international / league / domestic
+                    status: match.status || "Live",
+                    venue: match.venue || "TBD",
+                    date: match.date || "",
+                    score: formattedScore,
+                    teams: [match.teams[0] || "Team A", match.teams[1] || "Team B"]
+                };
+            });
+
+            // Push entire database payload
+            await axios.put(FIREBASE_URL, {
+                matches: matchesArray,
+                lastUpdated: new Date().toISOString()
+            });
+
+            console.log(`Successfully updated ${matchesArray.length} matches in Firebase!`);
         }
-
-        await axios.put(FIREBASE_URL, {
-            matchName: matchName,
-            currentScore: currentScore,
-            lastUpdated: new Date().toISOString()
-        });
-
-        console.log("Database updated successfully!");
     } catch (error) {
-        console.error("Update failed:", error.message);
+        console.error("Failed to sync matches:", error.message);
     }
 }
 
-// Automatically runs every 30 seconds
-setInterval(fetchAndSaveScore, 30000);
-fetchAndSaveScore();
+// Keeping a safe interval for your 100 hits/day limit (runs every 15 minutes)
+setInterval(fetchAndSaveAllMatches, 900000);
+fetchAndSaveAllMatches();
 
-// --- FREE RENDER PORT TRICK ---
-// This code creates a dummy server to prevent Render's port scan timeout error
+// --- RENDER DUMMY PORT TRICK ---
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Cricket Bot is Running Perfectly!\n');
+    res.end('BongoCric Advanced Score Engine Running...\n');
 });
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Dummy server listening on port ${PORT}`);
+    console.log(`Server listening on port ${PORT}`);
 });
